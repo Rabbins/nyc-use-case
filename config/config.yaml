@@ -1,0 +1,25 @@
+paths:
+  bronze: "data/bronze"
+  silver: "data/silver"
+  gold: "data/gold"
+
+sources:
+  collisions:
+    # NYC Open Data Socrata API for CSV
+    url: "https://data.cityofnewyork.us/api/views/h9gi-nx95/rows.csv?accessType=DOWNLOAD" # this URL was taking too long, 
+    # url: "https://data.cityofnewyork.us/resource/h9gi-nx95.csv?$where=crash_date>'2023-01-01'&$limit=500000" # I tried this but the format kept breaking
+    years: [2020, 2021, 2022, 2023, 2024, 2025]
+    filename: "collisions_raw.csv"
+  
+  holidays:
+    # Nager.Date API
+    url_base: "https://date.nager.at/api/v3/publicholidays"
+    country_code: "US"
+    years: [2020, 2021, 2022, 2023, 2024, 2025]
+    filename: "holidays_raw.json"
+
+  weather:
+    # NYC Central park historical weather
+    url: "https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/USW00094728.csv"
+    years: [2020, 2021, 2022, 2023, 2024, 2025]
+    filename: "weather_raw.csv"

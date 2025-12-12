@@ -1,0 +1,58 @@
+[tool.poetry]
+name = "nyc-collision-etl"
+version = "0.1.0"
+description = "ETL pipeline for analyzing NYC traffic collision data using Polars and DuckDB."
+authors = ["Tu Nombre <tu.email@ejemplo.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11" # Asegúrate de que esta versión sea compatible con tu entorno
+# --- LIBRERÍAS CORE ETL & DATA PROCESSING ---
+polars = "1.35.2"
+duckdb = "1.4.3"
+pyarrow = "22.0.0" # PyArrow es necesario para la compatibilidad con Parquet en Polars/DuckDB
+pandas = "2.3.3" # Requerido por Seaborn/Matplotlib
+numpy = "2.3.5"
+python-dotenv = "1.2.1"
+PyYAML = "6.0.3"
+
+# --- WEB/REQUESTS ---
+requests = "2.32.5"
+certifi = "2025.11.12"
+charset-normalizer = "3.4.4"
+idna = "3.11"
+urllib3 = "2.6.0"
+
+# --- VISUALIZACIÓN/NOTEBOOK ---
+seaborn = "0.13.2"
+matplotlib = "3.10.8"
+jupyter-core = "5.9.1"
+ipykernel = "7.1.0"
+ipython = "9.8.0"
+comm = "0.2.3"
+decorator = "5.2.1"
+matplotlib-inline = "0.2.1"
+nest-asyncio = "1.6.0"
+psutil = "7.1.3"
+tornado = "6.5.2"
+traitlets = "5.14.3"
+pyzmq = "27.1.0"
+# (El resto de las dependencias de bajo nivel de Matplotlib y IPython se manejan automáticamente)
+
+# --- TIPADO & UTILIDADES ---
+typing-extensions = "4.15.0"
+python-dateutil = "2.9.0.post0"
+pytz = "2025.2"
+tzdata = "2025.2"
+six = "1.17.0"
+
+
+[tool.poetry.group.dev.dependencies]
+# Aquí irían las herramientas de desarrollo si las usaras (pytest, black, flake8)
+# No se incluyeron explícitamente, pero es buena práctica tener el grupo 'dev'.
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

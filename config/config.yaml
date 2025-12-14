@@ -23,3 +23,34 @@ sources:
     url: "https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access/USW00094728.csv"
     years: [2020, 2021, 2022, 2023, 2024, 2025]
     filename: "weather_raw.csv"
+
+
+# Para evitr "hardcodear" nombres en el código Python.
+silver:
+  collisions:
+    # Mapeo: "Nombre Original en CSV" : "Nuevo Nombre en Silver"
+    rename_map:
+      "CRASH DATE": "crash_date"
+      "CRASH TIME": "crash_time"
+      "BOROUGH": "borough"
+      "ZIP CODE": "zip_code"
+      "NUMBER OF PERSONS INJURED": "number_of_persons_injured"
+      "NUMBER OF PERSONS KILLED": "number_of_persons_killed"
+      "NUMBER OF PEDESTRIANS INJURED": "number_of_pedestrians_injured"
+      "NUMBER OF PEDESTRIANS KILLED": "number_of_pedestrians_killed"
+      "NUMBER OF CYCLIST INJURED": "number_of_cyclist_injured"
+      "NUMBER OF CYCLIST KILLED": "number_of_cyclist_killed"
+      "NUMBER OF MOTORIST INJURED": "number_of_motorist_injured"
+      "NUMBER OF MOTORIST KILLED": "number_of_motorist_killed"
+      "CONTRIBUTING FACTOR VEHICLE 1": "contributing_factor_vehicle_1"
+    
+    # Lista de columnas numéricas que se usarán para agregaciones
+    metric_cols:
+      - "number_of_persons_injured"
+      - "number_of_persons_killed"
+      - "number_of_pedestrians_injured"
+      - "number_of_pedestrians_killed"
+      - "number_of_cyclist_injured"
+      - "number_of_cyclist_killed"
+      - "number_of_motorist_injured"
+      - "number_of_motorist_killed"    

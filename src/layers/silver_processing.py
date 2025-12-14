@@ -1,9 +1,7 @@
-import shutil
 import polars as pl
-# import pyarrow
 from pathlib import Path
 from typing import Union, Tuple
-from ..utils import setup_logger, clean_output_directory
+from ..utils import setup_logger, clean_output_directory,time_execution
 
 logger = setup_logger(__name__)
 
@@ -16,41 +14,24 @@ class SilverProcessor:
     4. Returns Data for the next layer
     """
     
-    # Column selection and renaming
-    COLLISION_RENAME_MAP = {
-        "CRASH DATE": "crash_date",
-        "CRASH TIME": "crash_time",
-        "BOROUGH": "borough",
-        "ZIP CODE": "zip_code",
-        "NUMBER OF PERSONS INJURED": "number_of_persons_injured",
-        "NUMBER OF PERSONS KILLED": "number_of_persons_killed",
-        "NUMBER OF PEDESTRIANS INJURED": "number_of_pedestrians_injured",
-        "NUMBER OF PEDESTRIANS KILLED": "number_of_pedestrians_killed",
-        "NUMBER OF CYCLIST INJURED": "number_of_cyclist_injured",
-        "NUMBER OF CYCLIST KILLED": "number_of_cyclist_killed",
-        "NUMBER OF MOTORIST INJURED": "number_of_motorist_injured",
-        "NUMBER OF MOTORIST KILLED": "number_of_motorist_killed",
-        "CONTRIBUTING FACTOR VEHICLE 1": "contributing_factor_vehicle_1"
-    }
-
-    METRIC_COLS = [
-        "number_of_persons_injured", "number_of_persons_killed",
-        "number_of_pedestrians_injured", "number_of_pedestrians_killed",
-        "number_of_cyclist_injured", "number_of_cyclist_killed",
-        "number_of_motorist_injured", "number_of_motorist_killed"
-    ]
+    def __init__(self, config: dict):
+        # Load Silver config
+        self.rename_map = config['silver']['collisions']['rename_map']
+        self.metric_cols = config['silver']['collisions']['metric_cols']
+    
+    @time_execution
     def process_collisions(
         self, 
         input_data: Union[pl.DataFrame, Path], 
         output_path: Path
     ) -> Tuple[pl.DataFrame, Path]:
         """
-        Standardizes collisions, wirtes to Silver (Partitioned) and returns the DataFrame.
+        Standardizes collisions, wirtes to Silver (partitioned) and returns the DataFrame
         """
         
         logger.info("Processing Collisions (Bronze -> Silver)...")
         
-        # 1. Load Input to LazyFrame
+        # Check type and load to LazyFrame (could be migrated to a utils.py method)
         if isinstance(input_data, Path):
             lf = pl.scan_csv(input_data, ignore_errors=True)
         elif isinstance(input_data, pl.DataFrame):
@@ -58,31 +39,31 @@ class SilverProcessor:
         else:
             raise TypeError(f"Unsupported input type: {type(input_data)}")
 
-        # 2. Transform
+        # Transform
         q = (
             lf
             .filter(pl.col("CRASH DATE").is_not_null())
-            .rename(self.COLLISION_RENAME_MAP)
-            .select(list(self.COLLISION_RENAME_MAP.values()))
+            .rename(self.rename_map)
+            .select(list(self.rename_map.values()))
             .with_columns([
                 pl.col("crash_date").str.to_date("%m/%d/%Y").alias("date"),
                 pl.col("borough").fill_null("UNKNOWN"),
                 # clean up null metrics with 0s
-                pl.col(self.METRIC_COLS).fill_null(0).cast(pl.Int32)
+                pl.col(self.metric_cols).fill_null(0).cast(pl.Int32)
             ])
             .with_columns([
                 # is_weekend column
                 (pl.col("date").dt.weekday() >= 6).alias("is_weekend"),
-                # Partition Keys for writing into disk
+                # Partition keys for writing into disk
                 pl.col("date").dt.year().alias("year"),
                 pl.col("date").dt.month().alias("month")
             ])
         )
         
-        # 3. Materialize (We need the DataFrame to persist it)
+        # Materialize (we need the DataFrame to persist it)
         df_silver = q.collect()
 
-        # 4. Write to disk
+        # Write to disk
         logger.info(f"Persisting Collisions Silver Layer to {output_path}...")
         clean_output_directory(output_path)
         
@@ -92,7 +73,8 @@ class SilverProcessor:
         )
 
         return df_silver, output_path
-
+    
+    @time_execution
     def process_holidays(
         self, 
         input_data: Union[pl.DataFrame, Path], 
@@ -104,7 +86,7 @@ class SilverProcessor:
         
         logger.info("Processing Holidays (Bronze -> Silver)...")
 
-        # 1. Load Input to LazyFrame
+        # Check type and load to LazyFrame
         if isinstance(input_data, Path):
             lf = pl.read_json(input_data).lazy()
         elif isinstance(input_data, pl.DataFrame):
@@ -112,7 +94,7 @@ class SilverProcessor:
         else:
              raise TypeError(f"Unsupported input type: {type(input_data)}")
 
-        # 2. Transform
+        # Transform
         q = (
             lf
             .select([
@@ -127,10 +109,10 @@ class SilverProcessor:
             .unique()
         )
         
-        # 3. Materialize
+        # Materialize
         df_silver = q.collect()
 
-        # 4. Write
+        # Write to disk
         logger.info(f"Persisting Holidays Silver Layer to {output_path}...")
         clean_output_directory(output_path)
         
@@ -141,7 +123,7 @@ class SilverProcessor:
 
         return df_silver, output_path
     
-    
+    @time_execution
     def process_weather(
             self, 
             input_data: Union[pl.DataFrame, Path], 
@@ -152,7 +134,7 @@ class SilverProcessor:
             """
             logger.info("Processing Weather Data (Bronze -> Silver)...")
             
-            # 1. Load Input to LazyFrame
+            # Load Input to LazyFrame
             if isinstance(input_data, Path):
                 # 'infer_schema_length=0' we read all cols as String first to avoid errors with messy CSVs
                 lf = pl.scan_csv(input_data, ignore_errors=True, infer_schema_length=0)
@@ -161,43 +143,36 @@ class SilverProcessor:
             else:
                 raise TypeError(f"Unsupported input type: {type(input_data)}")
 
-            # 2. Transformations
-            # NOAA GHCN-Daily Units:
-            # TMAX/TMIN = Tenths of degrees C (e.g., 250 = 25.0°C)
-            # PRCP = Tenths of mm (e.g., 50 = 5.0 mm)
-            # SNOW = mm (whole numbers)
-            # WT** Columns = "1" if event occurred, null otherwise.
+            # Transform
+            # Data extracted from NOAA GHCN-Daily has to be processed to obtain useful data
 
             q = (
                 lf
                 .filter(pl.col("DATE") >= "2020-01-01")
                 .filter(pl.col("DATE").is_not_null())
                 .with_columns([
-                    # Convert DATE string to Date object
+                    # Convert DATE string to Date type
                     pl.col("DATE").str.to_date("%Y-%m-%d").alias("date"),
                     
-                    # Convert Temperature (Tenths of C -> C)
-                    (pl.col("TMAX").str.strip_chars().cast(pl.Float64) / 10).round(1).alias("temp_max_c"),
-                    (pl.col("TMIN").str.strip_chars().cast(pl.Float64) / 10).round(1).alias("temp_min_c"),
+                    # Convert Temperature
+                    (pl.col("TMAX").cast(pl.String).str.strip_chars().cast(pl.Float64) / 10).round(1).alias("temp_max_c"),
+                    (pl.col("TMIN").cast(pl.String).str.strip_chars().cast(pl.Float64) / 10).round(1).alias("temp_min_c"),
 
-                    # Convert Precipitation (Tenths of mm -> mm)
-                    (pl.col("PRCP").str.strip_chars().cast(pl.Float64) / 10).alias("precipitation_mm"),
+                    # Convert Precipitation
+                    (pl.col("PRCP").cast(pl.String).str.strip_chars().cast(pl.Float64) / 10).alias("precipitation_mm"),
 
-                    # Snow is already in mm, just cast it
-                    pl.col("SNOW").str.strip_chars().cast(pl.Float64).alias("snow_mm"),
+                    pl.col("SNOW").cast(pl.String).str.strip_chars().cast(pl.Float64).alias("snow_mm"),
 
-                    # --- Extract Weather Events (Fog, Rain, Snow) ---
-                    # WT01 = Fog, ice fog, or freezing fog
-                    # WT02 = Heavy fog
+                    # --- Fog, rain, snow ---
                     # Logic: If either WT01 or WT02 is "1", it was foggy.
                     pl.any_horizontal(
-                        pl.col("WT01").str.strip_chars().cast(pl.Int32, strict=False) == 1,
-                        pl.col("WT02").str.strip_chars().cast(pl.Int32, strict=False) == 1
+                        pl.col("WT01").cast(pl.String).str.strip_chars().cast(pl.Int32, strict=False) == 1,
+                        pl.col("WT02").cast(pl.String).str.strip_chars().cast(pl.Int32, strict=False) == 1
                     ).fill_null(False).alias("is_foggy"),
 
                     # Basic Boolean flags for Rain/Snow based on measurements
-                    (pl.col("PRCP").str.strip_chars().cast(pl.Float64) > 0).fill_null(False).alias("has_rain"),
-                    (pl.col("SNOW").str.strip_chars().cast(pl.Float64) > 0).fill_null(False).alias("has_snow")
+                    (pl.col("PRCP").cast(pl.String).str.strip_chars().cast(pl.Float64) > 0).fill_null(False).alias("has_rain"),
+                    (pl.col("SNOW").cast(pl.String).str.strip_chars().cast(pl.Float64) > 0).fill_null(False).alias("has_snow")
                 ])
                 # Select only the clean columns we want to keep
                 .select([
@@ -217,10 +192,10 @@ class SilverProcessor:
                 ])
             )
             
-            # 3. Materialize 
+            # Materialize Dataframe 
             df_silver = q.collect()
 
-            # 4. Write to Disk (Partitioned)
+            # Save to disk/datalake (Partitioned)
             logger.info(f"Persisting Weather Silver Layer to {output_path}...")
             clean_output_directory(output_path)
             

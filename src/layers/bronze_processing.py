@@ -2,20 +2,20 @@ import requests
 import json
 from pathlib import Path
 from typing import List, Tuple
-from ..utils import setup_logger,setup_session,ensure_directory
+from ..utils import setup_logger,setup_session,ensure_directory, time_execution
 import polars as pl
 
 logger = setup_logger(__name__)
 
 class BronzeExtractor:
     def __init__(self, config: dict):
-        self.config = config
+        self.config = config # load config
         
         # Create a session to reuse TCP connections and handle retries
         self.session = setup_session()
 
 
-
+    @time_execution
     def download_file_from_url(self, url: str, output_path: Path) -> Tuple[pl.DataFrame, Path]:
             """
             Downloads a file directly to disk and loads it into a dataframe.
@@ -24,12 +24,13 @@ class BronzeExtractor:
             
             ensure_directory(output_path)
             
-            # 1. Check if cached
+            # Check if cached
             if output_path.exists():
                 logger.info(f"File found at {output_path}. Skipping download.")
             else:
                 try:
-                    # 2. Download and Write (Stream to disk to save RAM)
+                    # Download and write 
+                    # We can use stream to disk to save RAM (as it won't load all data into memory)
                     response = self.session.get(url, stream=True, timeout=60)
                     response.raise_for_status()
                     
@@ -47,7 +48,7 @@ class BronzeExtractor:
                         output_path.unlink()
                     raise
 
-            # 3. Read into Polars
+            # Read into Polars
             df = pl.read_csv(
                 output_path,
                 ignore_errors=True, 
@@ -56,12 +57,13 @@ class BronzeExtractor:
                 
             return df, output_path
 
+    @time_execution
     def fetch_holidays(self, base_url: str, country: str, years: List[int], output_path: Path) -> Tuple[pl.DataFrame,Path]:
             """
             Fetches holidays from API, saves them to disk (Bronze) and returns the DataFrame for processing.
             
             Returns:
-                Tuple[Path, pl.DataFrame]: (Path to saved JSON, Polars DataFrame)
+                Tuple[Path, pl.DataFrame]: (Path to saved file, Polars DataFrame)
             """
             ensure_directory(output_path)
             
@@ -73,7 +75,6 @@ class BronzeExtractor:
                 logger.info(f"Fetching holidays for {year}...")
                 
                 try:
-                    # Reuse session
                     response = self.session.get(url, timeout=10)
                     response.raise_for_status()
                     
@@ -83,17 +84,16 @@ class BronzeExtractor:
                 except requests.exceptions.RequestException as e:
                     logger.warning(f"Could not fetch holidays for {year}: {e}")
             
-            # Guard Clause
             if not all_holidays:
                 raise RuntimeError("No holidays data fetched. Check API availability.")
 
-            # 1. Save to disk (Bronze Layer)
+            # Save to disk/s3/datalake (Bronze Layer)
             with open(output_path, 'w') as f:
                 json.dump(all_holidays, f, indent=2)
             
             logger.info(f"Holidays persisted to {output_path}")
 
-            # 2. Create Dataframe
+            # Create Dataframe
             try:
                 df = pl.DataFrame(all_holidays)
                 return df,output_path

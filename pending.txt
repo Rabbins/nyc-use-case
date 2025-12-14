@@ -1,6 +1,0 @@
-- Refactorización del código (extract, transform, load y pipeline) para que cumplan funciones totalmente desacopladas y simbióticas
-- Añadir poetry
-- Tests unitarios e integración (al final cuando esté todo el desarrollo listo)
-- Revisión de comentarios / descriptions (IA) y del código en general
-- Presentación , ideas, evolutivos, puntos de mejora... (tendencias en los años, más países, ...)
-- Explicar que dada la complejidad y centrarme e nal aprte ETL he considerado utilizar un modelo One Big Table para simplifcar el desarorllo y el análisis y porque se adaptaba bien a los Kpis que quería revisar

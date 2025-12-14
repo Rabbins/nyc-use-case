@@ -29,7 +29,7 @@ This project uses **Poetry** to manage dependencies and virtual environments str
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/antonioRubi/uptimal-use-case.git](https://github.com/antonioRubi/uptimal-use-case.git)
+    git clone [https://github.com/Rabbins/nyc-use-case.git](https://github.com/Rabbins/nyc-use-case.git)
     cd uptimal-use-case
     ```
 
